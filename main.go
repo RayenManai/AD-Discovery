@@ -14,31 +14,58 @@ func main() {
 
 	fmt.Println("--- Starting Active Directory Functionality Demo ---")
 
-	// --- LDAP Query Demo ---
+	ldapHost := ""
+	ldapPort, _ := strconv.Atoi("389")
+	ldapUser := ""
+	ldapPassword := ""
+	searchCnLdap := ""
+
 	fmt.Println("\n--- LDAP Query Demo ---")
-	ldapHost := "HBO.LOCAL"
-	ldapPortStr := "389"
-	ldapUser := "administrator"
-	ldapPassword := "windows"
 
-	searchCnLdap := "DC2"
+	// Choose authentication method
+	useGSSAPI := true
 
-	if ldapHost == "" || ldapPortStr == "" || ldapUser == "" || ldapPassword == "" || searchCnLdap == "" {
-		logger.Warningf("LDAP variables (LDAP_HOST, LDAP_PORT, LDAP_USER, LDAP_PASSWORD, LDAP_SEARCH_CN) are not fully set. Skipping LDAP query demo.")
-		logger.Warningf("Please set them to run the LDAP demo.")
-	} else {
-		ldapPort, err := strconv.Atoi(ldapPortStr)
-		if err != nil {
-			logger.Errorf("Invalid LDAP_PORT environment variable: %s", err)
+	var gssapiOptions *active_directory.GSSAPIOptions
+
+	if useGSSAPI {
+		// Decide between config file or programmatic config
+		useConfigFile := true
+
+		if useConfigFile {
+			gssapiOptions = &active_directory.GSSAPIOptions{
+				Realm:                "",
+				ConfigFilePath:       "",
+				ServicePrincipalName: "",
+			}
 		} else {
-			logger.Infof("Attempting LDAP query for CN: %s on %s:%d", searchCnLdap, ldapHost, ldapPort)
-			adResultLdap := active_directory.LdapQuery(logger, searchCnLdap, ldapHost, ldapPort, ldapUser, ldapPassword, 60*time.Second, true)
-			if adResultLdap != nil && adResultLdap.Name != "" {
-				fmt.Printf("LDAP Query Result:\n%+v\n", adResultLdap)
-			} else {
-				fmt.Println("LDAP Query did not return a result or encountered an error.")
+			gssapiOptions = &active_directory.GSSAPIOptions{
+				Realm:                "",
+				KDCs:                 []string{""},
+				ServicePrincipalName: "",
+				DefaultDomain:        "",
 			}
 		}
+	} else {
+		// Standard LDAP auth - no GSSAPI options
+		gssapiOptions = nil
+	}
+
+	// Execute LDAP query
+	adResultLdap := active_directory.LdapQuery(
+		logger,
+		searchCnLdap,
+		ldapHost,
+		ldapPort,
+		ldapUser,
+		ldapPassword,
+		60*time.Second,
+		gssapiOptions,
+	)
+
+	if adResultLdap != nil && adResultLdap.Name != "" {
+		fmt.Printf("LDAP Query Result:\n%+v\n", adResultLdap)
+	} else {
+		fmt.Println("LDAP Query did not return a result or encountered an error.")
 	}
 
 	fmt.Println("\n--- Demo Finished ---")

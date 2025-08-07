@@ -3,9 +3,6 @@ package active_directory
 import (
 	"fmt"
 	"github.com/go-ldap/ldap/v3"
-	"github.com/go-ldap/ldap/v3/gssapi"
-	"github.com/jcmturner/gokrb5/v8/client"
-	"github.com/jcmturner/gokrb5/v8/iana/flags"
 	"github.com/siemens/GoScans/utils"
 	"net"
 	"strconv"
@@ -24,7 +21,7 @@ func LdapQuery(
 	ldapUser string,
 	ldapPassword string,
 	dialTimeout time.Duration,
-	useGSSAPI bool,
+	gssapiOptions *GSSAPIOptions, // nil for standard auth, non-nil for GSSAPI
 ) *Ad {
 
 	logger.Debugf("Searching LDAP with explicit authentication for '%s'.", searchCn)
@@ -32,10 +29,12 @@ func LdapQuery(
 	var conn *ldap.Conn
 	var errConn error
 
-	// Connect to LDAP with or without GSSAPI
-	if useGSSAPI {
-		conn, errConn = ldapConnectWithGSSAPI(logger, ldapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout, "MARVEL.LOCAL", "/etc/krb5.conf")
+	// Connect to LDAP with appropriate authentication method
+	if gssapiOptions != nil {
+		// Connect with GSSAPI
+		conn, errConn = ldapConnectWithGSSAPI(logger, ldapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout, *gssapiOptions)
 	} else {
+		// Connect with standard LDAP authentication
 		conn, errConn = ldapConnect(logger, ldapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout)
 	}
 	if errConn != nil {
@@ -297,56 +296,5 @@ func ldapConnect(
 	}
 
 	// Return connection
-	return conn, nil
-}
-
-func ldapConnectWithGSSAPI(
-	logger utils.Logger,
-	ldapAddress string,
-	ldapPort int,
-	ldapUser string,
-	ldapPassword string,
-	dialTimeout time.Duration,
-	kerberosRealm string,
-	kerberosConfPath string,
-) (*ldap.Conn, error) {
-
-	// Sanitize LDAP address
-	baseUrl := strings.TrimPrefix(ldapAddress, "ldap://")
-	baseUrl = strings.TrimPrefix(baseUrl, "ldaps://")
-	baseUrl = strings.TrimPrefix(baseUrl, "ldapi://")
-
-	// Prepare connection options
-	opts := []ldap.DialOpt{
-		ldap.DialWithDialer(&net.Dialer{Timeout: dialTimeout}),
-	}
-
-	// Open a standard (non-TLS) LDAP connection
-	conn, err := ldap.DialURL(fmt.Sprintf("ldap://%s:%d", baseUrl, ldapPort), opts...)
-	if err != nil {
-		logger.Debugf("LDAP connection to '%s:%d' failed: %s", ldapAddress, ldapPort, err)
-		return nil, err
-	}
-
-	// Create a GSSAPI client with credentials
-	client, err := gssapi.NewClientWithPassword(ldapUser, kerberosRealm, ldapPassword, kerberosConfPath, client.DisablePAFXFAST(true))
-	if err != nil {
-		conn.Close()
-		logger.Debugf("Failed to create GSSAPI client: %s", err)
-		return nil, fmt.Errorf("gssapi client creation failed: %w", err)
-	}
-
-	// Bind using GSSAPI
-	err = conn.GSSAPIBindRequestWithAPOptions(client, &ldap.GSSAPIBindRequest{
-		ServicePrincipalName: "ldap/DC2.HBO.local",
-		AuthZID:              "",
-	},
-		[]int{flags.APOptionMutualRequired})
-	if err != nil {
-		conn.Close()
-		logger.Debugf("GSSAPI bind failed: %s", err)
-		return nil, fmt.Errorf("GSSAPI bind failed: %w", err)
-	}
-
 	return conn, nil
 }
