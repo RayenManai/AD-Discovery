@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/siemens/GoScans/utils"
 	"strconv"
 	"time"
@@ -14,11 +15,12 @@ func main() {
 
 	fmt.Println("--- Starting Active Directory Functionality Demo ---")
 
-	ldapHost := ""
+	ldapHost := "HBO.LOCAL"
+	fqdnLDAPHost := "DC2.HBO.LOCAL"
 	ldapPort, _ := strconv.Atoi("389")
-	ldapUser := ""
-	ldapPassword := ""
-	searchCnLdap := ""
+	ldapUser := "administrator"
+	ldapPassword := "windows"
+	searchCnLdap := "DC2"
 
 	fmt.Println("\n--- LDAP Query Demo ---")
 
@@ -29,20 +31,32 @@ func main() {
 
 	if useGSSAPI {
 		// Decide between config file or programmatic config
-		useConfigFile := true
+		useConfigFile := false
 
 		if useConfigFile {
 			gssapiOptions = &active_directory.GSSAPIOptions{
-				Realm:                "",
-				ConfigFilePath:       "",
-				ServicePrincipalName: "",
+				DefaultRealm:         "MARVEL.LOCAL",
+				ConfigFilePath:       "/etc/krb5.conf",
+				ServicePrincipalName: "ldap/DC2.HBO.local",
 			}
 		} else {
 			gssapiOptions = &active_directory.GSSAPIOptions{
-				Realm:                "",
-				KDCs:                 []string{""},
-				ServicePrincipalName: "",
-				DefaultDomain:        "",
+				DefaultRealm: "MARVEL.LOCAL",
+				Realms: []config.Realm{
+					{
+						Realm:         "MARVEL.LOCAL",
+						KDC:           []string{"192.168.56.101"},
+						AdminServer:   []string{"192.168.56.101"},
+						DefaultDomain: "marvel.local",
+					},
+					{
+						Realm:         ldapHost,
+						KDC:           []string{"192.168.56.111"},
+						AdminServer:   []string{"192.168.56.111"},
+						DefaultDomain: ldapHost,
+					},
+				},
+				ServicePrincipalName: fqdnLDAPHost,
 			}
 		}
 	} else {
