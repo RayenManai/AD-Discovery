@@ -156,7 +156,7 @@ func LdapQuery(
 
 	// Execute user query, if managedBy is set
 	if len(managedBy) > 6 { // > 6 because there must be 'CN=' and 'DC=' at least
-		ldapExpand(logger, conn, ldapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout, &result)
+		ldapExpand(logger, conn, ldapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout, &result, gssapiOptions)
 	}
 
 	// Return filled AD struct
@@ -173,6 +173,7 @@ func ldapExpand(
 	ldapPassword string,
 	dialTimeout time.Duration,
 	result *Ad,
+	gssapiOptions *GSSAPIOptions,
 ) {
 	// Prepare temporary vars
 	var errConn error
@@ -186,8 +187,15 @@ func ldapExpand(
 		// Close old LDAP connection
 		conn.Close()
 
-		// Connect to Active Directory
-		conn, errConn = ldapConnect(logger, newLdapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout)
+		// Connect to LDAP with appropriate authentication method
+		var conn *ldap.Conn
+		if gssapiOptions != nil {
+			// Connect with GSSAPI
+			conn, errConn = ldapConnectWithGSSAPI(logger, newLdapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout, *gssapiOptions)
+		} else {
+			// Connect with standard LDAP authentication
+			conn, errConn = ldapConnect(logger, newLdapAddress, ldapPort, ldapUser, ldapPassword, dialTimeout)
+		}
 		if errConn != nil {
 			logger.Debugf("LDAP connection to '%s:%d' failed: %s", newLdapAddress, ldapPort, errConn)
 			return

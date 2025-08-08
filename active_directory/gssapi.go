@@ -139,11 +139,6 @@ func buildKrb5Config(options GSSAPIOptions, logger utils.Logger) *config.Config 
 	for _, realmOpt := range options.Realms {
 		realm := strings.ToUpper(realmOpt.Realm)
 
-		adminServers := realmOpt.AdminServer
-		if len(adminServers) == 0 {
-			adminServers = realmOpt.KDC
-		}
-
 		defaultDomain := realmOpt.DefaultDomain
 		if defaultDomain == "" {
 			defaultDomain = strings.ToLower(realm)
@@ -151,25 +146,10 @@ func buildKrb5Config(options GSSAPIOptions, logger utils.Logger) *config.Config 
 
 		krb5Conf.Realms = append(krb5Conf.Realms, config.Realm{
 			Realm:         realm,
-			AdminServer:   adminServers,
 			DefaultDomain: defaultDomain,
-			KDC:           formatServersWithPort(realmOpt.KDC, 88),
-			KPasswdServer: formatServersWithPort(realmOpt.KPasswdServer, 464),
-			MasterKDC:     realmOpt.MasterKDC,
+			KDC:           realmOpt.KDC,
 		})
 	}
 
 	return krb5Conf
-}
-
-func formatServersWithPort(servers []string, port int) []string {
-	result := make([]string, len(servers))
-	for i, server := range servers {
-		if !strings.Contains(server, ":") {
-			result[i] = fmt.Sprintf("%s:%d", server, port)
-		} else {
-			result[i] = server
-		}
-	}
-	return result
 }
